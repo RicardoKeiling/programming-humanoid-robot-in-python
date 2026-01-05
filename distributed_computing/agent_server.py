@@ -12,48 +12,48 @@
 '''
 
 # add PYTHONPATH
-import os
-import sys
-sys.path.append(os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', 'kinematics'))
+import grpc
+from concurrent import futures
+import numpy as np
 
-from inverse_kinematics import InverseKinematicsAgent
+import nao_pb2
+import nao_pb2_grpc
 
 
-class ServerAgent(InverseKinematicsAgent):
-    '''ServerAgent provides RPC service
-    '''
-    # YOUR CODE HERE
-    
-    def get_angle(self, joint_name):
-        '''get sensor value of given joint'''
-        # YOUR CODE HERE
-    
-    def set_angle(self, joint_name, angle):
-        '''set target angle of joint for PID controller
-        '''
-        # YOUR CODE HERE
+class NaoService(nao_pb2_grpc.NaoServiceServicer):
 
-    def get_posture(self):
-        '''return current posture of robot'''
-        # YOUR CODE HERE
+    def __init__(self, agent):
+        self.agent = agent
 
-    def execute_keyframes(self, keyframes):
-        '''excute keyframes, note this function is blocking call,
-        e.g. return until keyframes are executed
-        '''
-        # YOUR CODE HERE
+    def GetJointAngle(self, request, context):
+        angle = float(self.agent.perception.joint.get(request.joint_name, 0.0))
+        return nao_pb2.JointAngleResponse(angle=angle)
 
-    def get_transform(self, name):
-        '''get transform with given name
-        '''
-        # YOUR CODE HERE
+    def SetJointAngle(self, request, context):
+        self.agent.set_joint_angle(request.joint_name, request.angle)
+        return nao_pb2.StatusResponse(success=True, message="Joint angle set")
 
-    def set_transform(self, effector_name, transform):
-        '''solve the inverse kinematics and control joints use the results
-        '''
-        # YOUR CODE HERE
+    def SetEffectorTransform(self, request, context):
+        if len(request.transform.data) != 16:
+            return nao_pb2.StatusResponse(
+                success=False,
+                message="Transform must contain 16 values"
+            )
 
-if __name__ == '__main__':
-    agent = ServerAgent()
-    agent.run()
+        T = np.array(request.transform.data).reshape((4, 4))
+        self.agent.set_transforms(request.effector_name, T)
 
+        return nao_pb2.StatusResponse(
+            success=True,
+            message="Transform applied"
+        )
+
+
+def serve(agent):
+    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+    nao_pb2_grpc.add_NaoServiceServicer_to_server(
+        NaoService(agent), server
+    )
+    server.add_insecure_port("[::]:50051")
+    server.start()
+    server.wait_for_termination()

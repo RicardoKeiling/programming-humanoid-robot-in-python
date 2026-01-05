@@ -6,61 +6,43 @@
  * Hints: [threading](https://docs.python.org/2/library/threading.html) may be needed for monitoring if the task is done
 '''
 
-import weakref
+import grpc
+import numpy as np
 
-class PostHandler(object):
-    '''the post hander wraps function to be excuted in paralle
-    '''
-    def __init__(self, obj):
-        self.proxy = weakref.proxy(obj)
-
-    def execute_keyframes(self, keyframes):
-        '''non-blocking call of ClientAgent.execute_keyframes'''
-        # YOUR CODE HERE
-
-    def set_transform(self, effector_name, transform):
-        '''non-blocking call of ClientAgent.set_transform'''
-        # YOUR CODE HERE
+import nao_pb2
+import nao_pb2_grpc
 
 
-class ClientAgent(object):
-    '''ClientAgent request RPC service from remote server
-    '''
-    # YOUR CODE HERE
-    def __init__(self):
-        self.post = PostHandler(self)
-    
-    def get_angle(self, joint_name):
-        '''get sensor value of given joint'''
-        # YOUR CODE HERE
-    
-    def set_angle(self, joint_name, angle):
-        '''set target angle of joint for PID controller
-        '''
-        # YOUR CODE HERE
+class NaoClient:
 
-    def get_posture(self):
-        '''return current posture of robot'''
-        # YOUR CODE HERE
+    def __init__(self, address="localhost:50051"):
+        channel = grpc.insecure_channel(address)
+        self.stub = nao_pb2_grpc.NaoServiceStub(channel)
 
-    def execute_keyframes(self, keyframes):
-        '''excute keyframes, note this function is blocking call,
-        e.g. return until keyframes are executed
-        '''
-        # YOUR CODE HERE
+    def get_joint_angle(self, joint_name):
+        response = self.stub.GetJointAngle(
+            nao_pb2.JointRequest(joint_name=joint_name)
+        )
+        return response.angle
 
-    def get_transform(self, name):
-        '''get transform with given name
-        '''
-        # YOUR CODE HERE
+    def set_joint_angle(self, joint_name, angle):
+        response = self.stub.SetJointAngle(
+            nao_pb2.SetJointAngleRequest(
+                joint_name=joint_name,
+                angle=angle
+            )
+        )
+        return response.success
 
-    def set_transform(self, effector_name, transform):
-        '''solve the inverse kinematics and control joints use the results
-        '''
-        # YOUR CODE HERE
+    def set_effector_transform(self, effector_name, transform):
+        matrix = nao_pb2.Matrix4x4(
+            data=list(np.array(transform).flatten())
+        )
 
-if __name__ == '__main__':
-    agent = ClientAgent()
-    # TEST CODE HERE
-
-
+        response = self.stub.SetEffectorTransform(
+            nao_pb2.SetTransformRequest(
+                effector_name=effector_name,
+                transform=matrix
+            )
+        )
+        return response.success, response.message

@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package nao;
+
+service NaoService {
+  rpc GetJointAngle (JointRequest) returns (JointAngleResponse);
+  rpc SetJointAngle (SetJointAngleRequest) returns (StatusResponse);
+
+  rpc SetEffectorTransform (SetTransformRequest) returns (StatusResponse);
+}
+
+message JointRequest {
+  string joint_name = 1;
+}
+
+message JointAngleResponse {
+  double angle = 1;
+}
+
+message SetJointAngleRequest {
+  string joint_name = 1;
+  double angle = 2;
+}
+
+message Matrix4x4 {
+  repeated double data = 1; // length must be 16
+}
+
+message SetTransformRequest {
+  string effector_name = 1;
+  Matrix4x4 transform = 2;
+}
+
+message StatusResponse {
+  bool success = 1;
+  string message = 2;
+}
